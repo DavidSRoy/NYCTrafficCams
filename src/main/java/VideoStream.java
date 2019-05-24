@@ -17,6 +17,7 @@ import javax.swing.JFrame;
 public class VideoStream {
 	private URL url;
 	private ImagePanel image;
+	private String location;
 	
 	public VideoStream(String url) throws MalformedURLException {
 		this.url = new URL(url);
@@ -25,11 +26,13 @@ public class VideoStream {
 	public ImagePanel getImage(Graphics g) throws IOException {
 		image = new ImagePanel(url);
 		image.paintComponent(g);
-		//image.setLocation(20, 20);
-
-		image.setSize(image.getWidth() * 2, image.getHeight() * 2);
 		return image;
 	}
+	
+	public void startStream() {
+
+	}
+	
 	
 
 	

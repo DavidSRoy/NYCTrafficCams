@@ -7,6 +7,5 @@
 		</attributes>
 	</classpathentry>
 	<classpathentry kind="lib" path="C:/Home/David/Java/TestTensorFlow/libtensorflow-1.13.1.jar"/>
-	<classpathentry kind="lib" path="C:/Home/David/Java/TestTensorFlow/guava-27.1.zip"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

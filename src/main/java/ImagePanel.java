@@ -1,5 +1,6 @@
 package main.java;
 
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
@@ -14,13 +15,27 @@ import javax.swing.JPanel;
 @SuppressWarnings("serial")
 public class ImagePanel extends JPanel
 {
-     
+    
 	private BufferedImage image;
+	private URL url;
 	
     public ImagePanel(URL url) throws IOException 
     {
-    	image = ImageIO.read(url);
+    	this.url = url;
+    	image = this.getImage();
+    	Dimension size = new Dimension(image.getWidth(null), image.getHeight(null));
+		setPreferredSize(size);
+		setMinimumSize(size);
+		setMaximumSize(size);
+		setSize(size);
+		setLayout(null);
     }
+    
+    public BufferedImage getImage() throws IOException {
+    	return ImageIO.read(this.url);
+    }
+    
+    
     
     @Override
     public void paintComponent(Graphics g) {
@@ -28,8 +43,9 @@ public class ImagePanel extends JPanel
         g.drawImage(image, 0, 0, this);          
     }
     
-    public void repaint(Graphics g) {
+    public void repaint(Graphics g) throws IOException {
     	g.clearRect(0, 0, getWidth(), getHeight());
+    	image = getImage();
     	this.paintComponent(g);
     	
     }
