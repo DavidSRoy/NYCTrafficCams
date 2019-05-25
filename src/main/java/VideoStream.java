@@ -18,9 +18,12 @@ public class VideoStream {
 	private URL url;
 	private ImagePanel image;
 	private String location;
+	private int id;
 	
-	public VideoStream(String url) throws MalformedURLException {
+	public VideoStream(String url, int id) throws MalformedURLException {
 		this.url = new URL(url);
+		this.id = id;
+		this.location = NYCTrafficCams.locations.get(id);
 	}
 	
 	public ImagePanel getImage(Graphics g) throws IOException {
@@ -31,6 +34,10 @@ public class VideoStream {
 	
 	public void startStream() {
 
+	}
+	
+	public String getLocation() {
+		return this.location;
 	}
 	
 	
