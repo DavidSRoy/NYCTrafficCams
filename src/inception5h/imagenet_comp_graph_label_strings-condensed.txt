@@ -1,0 +1,115 @@
+revolver
+umbrella
+schooner
+soccer ball
+grand piano
+laptop
+strawberry
+airliner
+warplane
+airship
+balloon
+space shuttle
+fireboat
+speedboat
+lifeboat
+canoe
+catamaran
+trimaran
+container ship
+liner
+aircraft carrier
+submarine
+wreck
+half track
+tank
+missile
+bicycle-built-for-two
+mountain bike
+freight car
+passenger car
+barrow
+shopping cart
+motor scooter
+forklift
+electric locomotive
+steam locomotive
+ambulance
+beach wagon
+cab
+convertible
+jeep
+limousine
+minivan
+Model T
+racer
+sports car
+go-kart
+golfcart
+moped
+snowplow
+fire engine
+garbage truck
+pickup
+tow truck
+trailer truck
+moving van
+police van
+recreational vehicle
+streetcar
+snowmobile
+tractor
+mobile home
+tricycle
+unicycle
+horse cart
+desk
+pool table
+dining table
+plane
+shovel
+plow
+steel arch bridge
+suspension bridge
+viaduct
+barn
+greenhouse
+palace
+monastery
+library
+apiary
+boathouse
+church
+mosque
+stupa
+planetarium
+restaurant
+cinema
+home theater
+lumbermill
+coil
+obelisk
+totem pole
+castle
+prison
+grocery store
+bakery
+barbershop
+bookshop
+butcher shop
+confectionery
+shoe shop
+tobacco shop
+toyshop
+fountain
+cliff dwelling
+dock
+soap dispenser
+jersey
+school bus
+velvet
+tennis ball
+bubble
+cheeseburger
+parallel bars
+flagpole

@@ -24,6 +24,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 
 import javax.imageio.ImageIO;
@@ -41,16 +42,24 @@ import org.tensorflow.types.UInt8;
  * model.
  * 
  * Modified by David Roy Originally from TensorFlow authors
+ * Modifications
+ * -Added a filter on the classification method to 
+ * prevent irrelevant results from being returned.
+ * -Added the topLabel system
+ * see below
  */
 public class LabelImage {
 
 	static String modelDir = "src/inception5h";
 	static byte[] graphDef = readAllBytesOrExit(Paths.get(modelDir, "tensorflow_inception_graph.pb"));
 	static List<String> labels = readAllLinesOrExit(Paths.get(modelDir, "imagenet_comp_graph_label_strings.txt"));
-	String[] topLabels = { "cab", "school bus", "limousine", "jeep", "convertible", "racer", "beach wagon",
+	
+	//labels that are relevant to NYC traffic
+	static String[] topLabels = { "cab", "school bus", "limousine", "jeep", "convertible", "racer", "beach wagon",
 			"sports car", "moped", "fire engine", "garbage truck", "pickup", "tow truck", "trailer truck", "moving van",
-			"police van", "streetcar", "wreck", "taxi" };
-	List<String> labelsList = Arrays.asList(topLabels);
+			"police van", "streetcar", "wreck", "taxi", "trolleybus", "minibus", "recreational vehicle", "tractor",
+			"car wheel", "street sign", "parallel bars", "traffic light"};
+	static List<String> labelsList = Arrays.asList(topLabels);
 
 	/**
 	 * Modified by David Roy Originally from TensorFlow authors
@@ -60,6 +69,11 @@ public class LabelImage {
 	 * @throws IOException
 	 */
 	public String classify(BufferedImage bufferedImage) throws IOException {
+		
+		/*
+		 * @author David
+		 * save the image as a file
+		 */
 		File outputfile = new File("src/image.jpg");
 		ImageIO.write(bufferedImage, "jpg", outputfile);
 
@@ -71,41 +85,66 @@ public class LabelImage {
 
 		try (Tensor<Float> image = constructAndExecuteGraphToNormalizeImage(imageBytes)) {
 			float[] labelProbabilities = executeInceptionGraph(graphDef, image);
+			
+			/*
+			 * @author David
+			 * query for the top 4 matching labels
+			 * based on image
+			 */
+			List<Label> topLabels = null;
+			Label topLabel = null;
+
+			// flag if these labels are in topLabels
+			Label movingVan = null;
+			Label schoolBus = null;
+			boolean empty = true;
 
 			/*
-			 * for (float f : labelProbabilities) { System.out.println(f); }
+			 * @author David
+			 * iterate through the topLabels 
+			 * list to search for labels of
+			 * interest
 			 */
-			int bestLabelIdx = maxIndex(labelProbabilities);
-			String label = labels.get(bestLabelIdx);
-			List<String> topLabels = getTopLabels(labelProbabilities);
-			
-			//only choose labels that make sense in 
-			//the context (see labelsList)
-			while (!labelsList.contains(topLabels.get(0)) ||
-					!labelsList.contains(topLabels.get(1)) ||
-					!labelsList.contains(topLabels.get(2)) ||
-					!labelsList.contains(topLabels.get(3))
-					) {
-				labelProbabilities[bestLabelIdx] = 0;
-				//bestLabelIdx = maxIndex(labelProbabilities);
+			while (empty) {
 				topLabels = getTopLabels(labelProbabilities);
-				label = labels.get(bestLabelIdx);
 				
-				
-				//if the model sees a yellow vehicle, it may label it a school bus
-				// moving van is also a common tendency
-				if (topLabels.contains("moving van") && topLabels.contains("school bus")) {
-					label = "taxi cab";
-					break;
+				for (Label l : topLabels) {
+					if (l.getLabel().equalsIgnoreCase("moving van")) {
+						movingVan = l;
+					}
+
+					if (l.getLabel().equalsIgnoreCase("school bus")) {
+						schoolBus = l;
+					}
+
 				}
+				empty = topLabels.size() == 0;
 			}
-			result = String.format("BEST MATCH: %s (%.2f%% likely)", label,
-					labelProbabilities[bestLabelIdx] * 100f);
+
+			topLabel = topLabels.get(0);
+			
+			/*
+			 * @author David
+			 */
+			// if the model sees a yellow vehicle, it may label it a school bus
+			// moving van is also a common tendency
+			if (movingVan != null && schoolBus != null) {
+				topLabel = new Label("taxi cab", movingVan.getProbability() * schoolBus.getProbability());
+			}
+			
+			if (topLabel.getLabel().equals("parallel bars")) {
+				topLabel = new Label("crosswalk", topLabel.getProbability());
+			}
+
+			
+			result = String.format("BEST MATCH: %s (%.2f%% likely)", topLabel.getLabel(),
+					topLabel.getProbability() * 100f);
 		}
 
 		return result;
 	}
 
+	// @author Tensorflow
 	private static Tensor<Float> constructAndExecuteGraphToNormalizeImage(byte[] imageBytes) {
 		try (Graph g = new Graph()) {
 			GraphBuilder b = new GraphBuilder(g);
@@ -139,6 +178,7 @@ public class LabelImage {
 		}
 	}
 
+	// @author Tensorflow
 	private static float[] executeInceptionGraph(byte[] graphDef, Tensor<Float> image) {
 		try (Graph g = new Graph()) {
 			g.importGraphDef(graphDef);
@@ -162,6 +202,7 @@ public class LabelImage {
 		}
 	}
 
+	// @author Tensorflow
 	private static int maxIndex(float[] probabilities) {
 		int best = 0;
 		for (int i = 1; i < probabilities.length; ++i) {
@@ -171,25 +212,30 @@ public class LabelImage {
 		}
 		return best;
 	}
+	
 
 	/**
 	 * @author David Roy
 	 * 
 	 * @param probabilities
-	 * @return List of top 4 probabilities
+	 * @return List of top 4 matching labels
 	 */
-	private static List<String> getTopLabels(float[] probabilities) {
-		List<String> topLabels = new ArrayList<String>();
+	private static List<Label> getTopLabels(float[] probabilities) {
+
+		List<Label> topLabels = new ArrayList<Label>();
 
 		// add the top 4 probabilities to topLabels
 		while (topLabels.size() < 4) {
-			int best = 0;
-			for (int i = 1; i < probabilities.length; ++i) {
-				if (probabilities[i] > probabilities[best]) {
-					best = i;
+			int best = maxIndex(probabilities);
+			if (labelsList.contains(labels.get(best))) {
+				if (labels.get(best).equals("moving van") && (probabilities[best] * 100f) < 10) {
+					//bypass
+					//do not add "moving van" unless probability is greater than 10%
+				} else {
+					topLabels.add(new Label(labels.get(best), probabilities[best]));
 				}
-			}
-			topLabels.add((labels.get(best)));
+				
+			}			
 			// set the "best" probability to 0, so that the next best
 			// item can be chosen next
 			probabilities[best] = 0;
@@ -198,6 +244,7 @@ public class LabelImage {
 		return topLabels;
 	}
 
+	// @author Tensorflow
 	private static byte[] readAllBytesOrExit(Path path) {
 		try {
 			return Files.readAllBytes(path);
@@ -208,6 +255,7 @@ public class LabelImage {
 		return null;
 	}
 
+	// @author Tensorflow
 	private static List<String> readAllLinesOrExit(Path path) {
 		try {
 			return Files.readAllLines(path, Charset.forName("UTF-8"));
@@ -218,6 +266,7 @@ public class LabelImage {
 		return null;
 	}
 
+	// @author Tensorflow
 	// In the fullness of time, equivalents of the methods of this class should be
 	// auto-generated from
 	// the OpDefs linked into libtensorflow_jni.so. That would match what is done in

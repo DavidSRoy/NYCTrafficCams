@@ -1,6 +1,8 @@
 package main.java;
 
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Graphics;
 import java.awt.GridLayout;
 import java.awt.Image;
 import java.io.IOException;
@@ -11,10 +13,22 @@ import java.util.HashMap;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 
+/**
+ * 
+ * @author David Roy
+ * Last edited 06/15/19 11:32
+ * 
+ * Collect images from traffic cameras
+ * in New York City and scan them for objects
+ * of interest using a machine learning
+ * model
+ * 
+ */
 public class NYCTrafficCams {
-	static ArrayList<VideoStream> cams = new ArrayList<VideoStream>();
+	static ArrayList<TrafficCamera> cams = new ArrayList<TrafficCamera>();
 	static ArrayList<ImagePanel> images = new ArrayList<ImagePanel>();
 	public static HashMap<Integer, String> locations = new HashMap<Integer, String>();
+	
 	
 	public static void main(String[] args) throws IOException, InterruptedException {
 		
@@ -28,27 +42,41 @@ public class NYCTrafficCams {
 		frame.setLayout(new GridLayout(0, 4, 10, 10));
 		frame.setVisible(true);
 		LabelImage classifier = new LabelImage();
+		
+		//main loop
 		while (true) {
-			for (VideoStream cam : cams) {
+			for (TrafficCamera cam : cams) {
 				ImagePanel img = cam.getImage(frame.getGraphics());
 				images.add(img);
 				img.setBounds(-110, -200, 200, 200);
 				frame.add(img);
-				//frame.add(new JLabel(cam.getLocation()));
 				frame.pack();
 				
 				/*
-				 * Split the image into 4 subImages and 
-				 * classify each subImage
+				 * Split the image into subImages 
+				 * and classify each subImage
+				 * 
+				 * (about ((scale)^2 + scale) images)
 				 */
 				int width = img.getImage().getWidth();
 				int height = img.getImage().getHeight();
-//				/System.out.println(width);
-				int scale = 2;
-				int subWidth = width / scale;
-				int subHeight = height / scale;
-				for (int x = 0 ; x < width; x += subWidth) {
-					for (int y = 0; y < height; y += subHeight) {
+				
+				double scale = 2.2;
+				int subWidth = (int) (width / scale);
+				int subHeight = (int) (height / scale);
+				
+				System.out.println();
+				System.out.println(cam.getLocation());
+				
+				//iterate through the image, shifting the frame of reference
+				//draw a red rectangle to show the frame of reference
+				for (int x = 0 ; x < width - subWidth; x += clamp(subWidth, 0, width) / 2) {
+					for (int y = 0; y < height - subHeight; y += clamp(subHeight, 0, height) / 2) {
+						Graphics g = img.getGraphics();
+						g.clearRect(0, 0, width, height);
+						img.repaint(g);
+						g.setColor(Color.RED);
+						g.drawRect(x, y, subWidth, subHeight);
 						System.out.println(classifier.classify(img.getImage().getSubimage(x, y, subWidth, subHeight)));
 					}
 				}
@@ -57,25 +85,20 @@ public class NYCTrafficCams {
 
 			}
 			
-			//Thread.sleep(1);
-			
+			//remove all images to refresh
 			for (ImagePanel img : images) {
 				frame.remove(img);
 			}
-			
-
-			// Thread.sleep(1);
-			// frame.removeAll();
-
 		}
 
 	}
 	
+	//access and add cameras to cams List
 	public static void addCams() throws MalformedURLException {
-		int[] channels = {794, 212, 266, 299};
+		int[] channels = {794, 212, 261, 299};
 		for (int chnl : channels) {
 			String cam = "cctv" + chnl;
-			cams.add(new VideoStream("http://207.251.86.238/"
+			cams.add(new TrafficCamera("http://207.251.86.238/"
 					 + cam + ".jpg", chnl));
 			System.out.println("Added " + cam + ": " + locations.get(chnl));
 		}
@@ -86,8 +109,21 @@ public class NYCTrafficCams {
 		locations.put(261, "1 Ave @ 110 St.");
 		locations.put(212, "Water St. @ Wall St.");
 		locations.put(266, "null");
-		locations.put(794, "5th Ave @ 65th St.");
-		
-		
+		locations.put(794, "5th Ave @ 65th St.");		
+	}
+	
+	/**
+	 * Keep x between min and max
+	 * @param x
+	 * @param min
+	 * @param max
+	 * @return int between min and max
+	 */
+	public static int clamp(int x, int min, int max) {
+		if (x < min)
+			return min;
+		if (x > max)
+			return max;
+		return x;
 	}
 }
