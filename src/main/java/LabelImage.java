@@ -22,6 +22,7 @@ import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -38,57 +39,70 @@ import org.tensorflow.types.UInt8;
 /**
  * Sample use of the TensorFlow Java API to label images using a pre-trained
  * model.
+ * 
+ * Modified by David Roy Originally from TensorFlow authors
  */
 public class LabelImage {
-	private static void printUsage(PrintStream s) {
-		final String url = "https://storage.googleapis.com/download.tensorflow.org/models/inception5h.zip";
-		s.println("Java program that uses a pre-trained Inception model (http://arxiv.org/abs/1512.00567)");
-		s.println("to label JPEG images.");
-		s.println("TensorFlow version: " + TensorFlow.version());
-		s.println();
-		s.println("Usage: label_image <model dir> <image file>");
-		s.println();
-		s.println("Where:");
-		s.println("<model dir> is a directory containing the unzipped contents of the inception model");
-		s.println("            (from " + url + ")");
-		s.println("<image file> is the path to a JPEG image file");
-	}
 
-	public static void main(String[] args) {
-		if (args.length != 2) {
-			// printUsage(System.err);
-			// System.exit(1);
-		}
-
-	}
+	static String modelDir = "src/inception5h";
+	static byte[] graphDef = readAllBytesOrExit(Paths.get(modelDir, "tensorflow_inception_graph.pb"));
+	static List<String> labels = readAllLinesOrExit(Paths.get(modelDir, "imagenet_comp_graph_label_strings.txt"));
+	String[] topLabels = { "cab", "school bus", "limousine", "jeep", "convertible", "racer", "beach wagon",
+			"sports car", "moped", "fire engine", "garbage truck", "pickup", "tow truck", "trailer truck", "moving van",
+			"police van", "streetcar", "wreck", "taxi" };
+	List<String> labelsList = Arrays.asList(topLabels);
 
 	/**
 	 * Modified by David Roy Originally from TensorFlow authors
 	 * 
 	 * @param image
 	 * @return
-	 * @throws IOException 
+	 * @throws IOException
 	 */
 	public String classify(BufferedImage bufferedImage) throws IOException {
 		File outputfile = new File("src/image.jpg");
 		ImageIO.write(bufferedImage, "jpg", outputfile);
-		
-		String modelDir = "src/inception5h"; // args[0]
-		String imageFile = "src/image.jpg"; // args[1]
+
+		String imageFile = "src/image.jpg";
 
 		String result = "";
-		
-		byte[] graphDef = readAllBytesOrExit(Paths.get(modelDir, "tensorflow_inception_graph.pb"));
-		List<String> labels = readAllLinesOrExit(Paths.get(modelDir, "imagenet_comp_graph_label_strings.txt"));
+
 		byte[] imageBytes = readAllBytesOrExit(Paths.get(imageFile));
 
 		try (Tensor<Float> image = constructAndExecuteGraphToNormalizeImage(imageBytes)) {
 			float[] labelProbabilities = executeInceptionGraph(graphDef, image);
+
+			/*
+			 * for (float f : labelProbabilities) { System.out.println(f); }
+			 */
 			int bestLabelIdx = maxIndex(labelProbabilities);
-			result = String.format("BEST MATCH: %s (%.2f%% likely)", labels.get(bestLabelIdx),
+			String label = labels.get(bestLabelIdx);
+			List<String> topLabels = getTopLabels(labelProbabilities);
+			
+			//only choose labels that make sense in 
+			//the context (see labelsList)
+			while (!labelsList.contains(topLabels.get(0)) ||
+					!labelsList.contains(topLabels.get(1)) ||
+					!labelsList.contains(topLabels.get(2)) ||
+					!labelsList.contains(topLabels.get(3))
+					) {
+				labelProbabilities[bestLabelIdx] = 0;
+				//bestLabelIdx = maxIndex(labelProbabilities);
+				topLabels = getTopLabels(labelProbabilities);
+				label = labels.get(bestLabelIdx);
+				
+				
+				//if the model sees a yellow vehicle, it may label it a school bus
+				// moving van is also a common tendency
+				if (topLabels.contains("moving van") && topLabels.contains("school bus")) {
+					label = "taxi cab";
+					break;
+				}
+			}
+			result = String.format("BEST MATCH: %s (%.2f%% likely)", label,
 					labelProbabilities[bestLabelIdx] * 100f);
 		}
-		
+
 		return result;
 	}
 
@@ -131,9 +145,11 @@ public class LabelImage {
 			try (Session s = new Session(g);
 					// Generally, there may be multiple output tensors, all of them must be closed
 					// to prevent resource leaks.
+
 					Tensor<Float> result = s.runner().feed("input", image).fetch("output").run().get(0)
 							.expect(Float.class)) {
 				final long[] rshape = result.shape();
+
 				if (result.numDimensions() != 2 || rshape[0] != 1) {
 					throw new RuntimeException(String.format(
 							"Expected model to produce a [1 N] shaped tensor where N is the number of labels, instead it produced one with shape %s",
@@ -141,6 +157,7 @@ public class LabelImage {
 				}
 				int nlabels = (int) rshape[1];
 				return result.copyTo(new float[1][nlabels])[0];
+
 			}
 		}
 	}
@@ -153,6 +170,32 @@ public class LabelImage {
 			}
 		}
 		return best;
+	}
+
+	/**
+	 * @author David Roy
+	 * 
+	 * @param probabilities
+	 * @return List of top 4 probabilities
+	 */
+	private static List<String> getTopLabels(float[] probabilities) {
+		List<String> topLabels = new ArrayList<String>();
+
+		// add the top 4 probabilities to topLabels
+		while (topLabels.size() < 4) {
+			int best = 0;
+			for (int i = 1; i < probabilities.length; ++i) {
+				if (probabilities[i] > probabilities[best]) {
+					best = i;
+				}
+			}
+			topLabels.add((labels.get(best)));
+			// set the "best" probability to 0, so that the next best
+			// item can be chosen next
+			probabilities[best] = 0;
+		}
+
+		return topLabels;
 	}
 
 	private static byte[] readAllBytesOrExit(Path path) {
